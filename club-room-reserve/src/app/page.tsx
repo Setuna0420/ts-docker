@@ -37,7 +37,13 @@ const generateTimes = () => {
 };
 
 /*使えない時間帯を入れたい*/
-const bookedSlots = ["10:00 5/26", "13:00 5/27", "19:00 5/26"];
+//const bookedSlots = ["10:00 5/26", "13:00 5/27", "19:00 5/26"];
+
+interface bookedSlots {
+  slotId: string;
+  userName: string;
+  studenId: number;
+}
 
 
 export default function ReservationPage() {
@@ -50,6 +56,7 @@ export default function ReservationPage() {
 
   const [userName, setUserName] = useState("");
   const [studentId, setStudentId] = useState("");
+  const [bookedSlots, setbookedSlots] = useState<bookedSlots[]>([]);
 
 
 
@@ -75,7 +82,7 @@ export default function ReservationPage() {
             ← 前の週
           </button>
           <span className="text-sm font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
-            {dayOffset === 0 ? "今週" : `${dayOffset / 7}週間後の週`}
+            {dayOffset === 0 ? "今週" : `${-(dayOffset / 7)}週間前の週`}
           </span>
           <button
             onClick={() => setDayOffset(dayOffset + 7)}
@@ -107,13 +114,18 @@ export default function ReservationPage() {
 
               {days.map((day) => {
                 const slotId = time.label + " " + day.label;
-                const isBooked = bookedSlots.includes(slotId);
-                // 💡 ルール：土日（0と6）以外、かつ 10:00〜18:00（10以上18未満）なら強制的に予約不可
                 const isWeekdayLine = day.dayOfWeek !== "日" && day.dayOfWeek !== "土";
                 const isClassTime = time.label >= "10:00" && time.label < "18:00";
 
                 // すでに予約されているか、または「平日の授業時間」ならボタンを「✕」にする
-                const isDisable = isBooked || (isWeekdayLine && isClassTime);
+                // 92行目：予約データを探す（名前を表示するのに使いたい）
+                const bookingData = bookedSlots.find(b => b.slotId === slotId);
+
+                // 💡 ここを新しく追加：授業時間かどうかを判定（✕にするために使いたい）
+                const isSystemDisabled = isWeekdayLine && isClassTime;
+
+                // 💡 ここを修正：ボタンを「押せなくする」のは、授業時間 のときだけにしたい！
+                const isDisable = isSystemDisabled || !!bookingData;
                 return (
                   <button
                     key={time.label + "-" + day.label}
@@ -123,9 +135,15 @@ export default function ReservationPage() {
                         : "border-gray-200 bg-gray-50 text-gray-800 hover:bg-indigo-50 hover:border-indigo-200"
                       }`}
                     disabled={isDisable}
-                    onClick={() => setSelectedSlot(day.label + " " + time.label)}
+                    onClick={() => setSelectedSlot(slotId)}
                   >
-                    {isDisable ? "✕" : "+"}
+                    {isWeekdayLine && isClassTime ? (
+                      "✕"
+                    ) : bookingData ? (
+                      bookingData.userName
+                    ) : (
+                      "+"
+                    )}
                   </button>
                 )
               })}
@@ -176,7 +194,12 @@ export default function ReservationPage() {
               <div className="flex flex-col gap-2">
                 <button
                   onClick={() => {
-                    alert(`${userName}さん（学籍番号: ${studentId}）\n${selectedSlot} で予約を確定しました！`);
+                    const newBooking = {
+                      slotId: selectedSlot || "",
+                      userName: userName,
+                      studenId: Number(studentId) // 文字から数字に変換してあげる
+                    };
+                    setbookedSlots([...bookedSlots, newBooking]);
                     setSelectedSlot(null);
                     setUserName("");
                     setStudentId("");
