@@ -2,13 +2,16 @@
 
 import React, { useState } from "react"
 
-const generateInitialDays = () => {
+const generateInitialDays = (offset: number) => {
   const generateDays = [];
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
 
+  const today = new Date();
+  const currentDayOfWeek = today.getDay();
+
   for (let i = 0; i < 7; i++) {
     const d = new Date();
-    d.setDate(d.getDate() + i);
+    d.setDate(today.getDate() - currentDayOfWeek + i + offset);
     const month = d.getMonth() + 1;
     const date = d.getDate();
     const label = month + "/" + date;
@@ -35,7 +38,8 @@ const generateTimes = () => {
 const bookedSlots = ["10:00 5/26", "13:00 5/27", "19:00 5/26"];
 
 export default function ReservationPage() {
-  const [days] = useState(() => generateInitialDays());
+  const [dayOffset, setDayOffset] = useState(0);
+  const days = generateInitialDays(dayOffset);
   const [times] = useState(() => generateTimes());
 
   // 💡 記憶のための箱
@@ -43,6 +47,8 @@ export default function ReservationPage() {
 
   const [userName, setUserName] = useState("");
   const [studentId, setStudentId] = useState("");
+
+
 
   const isFormValid = userName.trim() !== "" && studentId.trim() !== "";
 
@@ -57,6 +63,23 @@ export default function ReservationPage() {
         <p className="text-center text-gray-500 mb-8 text-sm">
           一から作る、僕たちのオリジナル予約システム
         </p>
+
+        <div className="flex justify-between items-center mb-4 px-2">
+          <button
+            onClick={() => setDayOffset(dayOffset - 7)}
+            className="bg-white hover:bg-gray-50 text-gray-700 border border-gray-200 font-bold py-2 px-3 rounded-xl text-sm transition-colors shadow-sm"
+          >
+            ← 前の週
+          </button>
+          <span className="text-sm font-bold text-gray-500 bg-gray-100 px-3 py-1 rounded-full">
+            {dayOffset === 0 ? "今週" : `${dayOffset / 7}週間後の週`}
+          </span>
+          <button
+            onClick={() => setDayOffset(dayOffset + 7)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded-xl text-sm transition-colors shadow-sm"
+          >
+            次の週 →
+          </button>        </div>
 
         {/* スケジュール表 */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
