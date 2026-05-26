@@ -29,7 +29,7 @@ const generateInitialDays = (offset: number) => {
 /*時刻を表示するためのやつ */
 const generateTimes = () => {
   const times = [];
-  for (let i = 10; i < 23; i++) {
+  for (let i = 10; i < 22; i++) {
     const label = i + ":00";
     times.push({ label: label });
   }
@@ -108,47 +108,52 @@ export default function ReservationPage() {
           </div>
 
           {/* 時間ごとの行（二重ループ） */}
-          {times.map((time) => (
-            <div key={time.label} className="grid grid-cols-8 gap-2 mb-4 text-center font-bold">
-              <div className="text-gray-500">{time.label}</div>
+         {/* 時間ごとの行（二重ループ） */}
+          {times.map((time) => {
+            const startHour = parseInt(time.label);
+            const endHour = startHour + 1;
 
-              {days.map((day) => {
-                const slotId = time.label + " " + day.label;
-                const isWeekdayLine = day.dayOfWeek !== "日" && day.dayOfWeek !== "土";
-                const isClassTime = time.label >= "10:00" && time.label < "18:00";
+            return (
+              <div key={time.label} className="grid grid-cols-8 gap-2 mb-4 text-center font-bold items-center">
+               {/* 左端の時間表示：重複を削ってシンプルに整えました */}
+                {/* 左端の時間表示：スッキリ1行で「10:00～」にする */}
+                <div className="text-gray-500 flex items-center justify-center h-full text-sm font-medium">
+                {startHour}:00 ～
+              </div>
 
-                // すでに予約されているか、または「平日の授業時間」ならボタンを「✕」にする
-                // 92行目：予約データを探す（名前を表示するのに使いたい）
-                const bookingData = bookedSlots.find(b => b.slotId === slotId);
+                {days.map((day) => {
+                  const slotId = time.label + " " + day.label;
+                  const isWeekdayLine = day.dayOfWeek !== "日" && day.dayOfWeek !== "土";
+                  const isClassTime = time.label >= "10:00" && time.label < "18:00";
 
-                // 💡 ここを新しく追加：授業時間かどうかを判定（✕にするために使いたい）
-                const isSystemDisabled = isWeekdayLine && isClassTime;
+                  const bookingData = bookedSlots.find(b => b.slotId === slotId);
+                  const isSystemDisabled = isWeekdayLine && isClassTime;
+                  const isDisable = isSystemDisabled || !!bookingData;
 
-                // 💡 ここを修正：ボタンを「押せなくする」のは、授業時間 のときだけにしたい！
-                const isDisable = isSystemDisabled || !!bookingData;
-                return (
-                  <button
-                    key={time.label + "-" + day.label}
-                    className={`border rounded-lg py-2 transition-colors font-bold
-                      ${isDisable
-                        ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "border-gray-200 bg-gray-50 text-gray-800 hover:bg-indigo-50 hover:border-indigo-200"
-                      }`}
-                    disabled={isDisable}
-                    onClick={() => setSelectedSlot(slotId)}
-                  >
-                    {isWeekdayLine && isClassTime ? (
-                      "✕"
-                    ) : bookingData ? (
-                      bookingData.userName
-                    ) : (
-                      "+"
-                    )}
-                  </button>
-                )
-              })}
-            </div>
-          ))}
+                  return (
+                    <button
+                      key={time.label + "-" + day.label}
+                      className={`border rounded-lg py-2 transition-colors font-bold
+                        ${isDisable
+                          ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                          : "border-gray-200 bg-gray-50 text-gray-800 hover:bg-indigo-50 hover:border-indigo-200"
+                        }`}
+                      disabled={isDisable}
+                      onClick={() => setSelectedSlot(slotId)}
+                    >
+                      {isWeekdayLine && isClassTime ? (
+                        "✕"
+                      ) : bookingData ? (
+                        bookingData.userName
+                      ) : (
+                        "+"
+                      )}
+                    </button>
+                  )
+                })}
+              </div>
+            )
+          })}
 
         </div> {/* 白いボックスの終わり */}
 
