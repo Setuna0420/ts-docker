@@ -2,6 +2,7 @@
 
 import React, { useState } from "react"
 
+/*今日から数えて七日間の日付を出す*/
 const generateInitialDays = () => {
   const generateDays = [];
   const dayNames = ["日", "月", "火", "水", "木", "金", "土"];
@@ -23,6 +24,7 @@ const generateInitialDays = () => {
   return generateDays;
 }
 
+/*時刻を表示するためのやつ */
 const generateTimes = () => {
   const times = [];
   for (let i = 10; i < 23; i++) {
@@ -32,7 +34,9 @@ const generateTimes = () => {
   return times;
 };
 
+/*使えない時間帯を入れたい*/
 const bookedSlots = ["10:00 5/26", "13:00 5/27", "19:00 5/26"];
+
 
 export default function ReservationPage() {
   const [days] = useState(() => generateInitialDays());
@@ -82,18 +86,24 @@ export default function ReservationPage() {
               {days.map((day) => {
                 const slotId = time.label + " " + day.label;
                 const isBooked = bookedSlots.includes(slotId);
+                // 💡 ルール：土日（0と6）以外、かつ 10:00〜18:00（10以上18未満）なら強制的に予約不可
+                const isWeekdayLine = day.dayOfWeek !== "日" && day.dayOfWeek !== "土";
+                const isClassTime = time.label >= "10:00" && time.label < "18:00"; 
+
+                // すでに予約されているか、または「平日の授業時間」ならボタンを「✕」にする
+                const isDisable = isBooked || (isWeekdayLine && isClassTime);
                 return (
                   <button
                     key={time.label + "-" + day.label}
                     className={`border rounded-lg py-2 transition-colors font-bold
-                      ${isBooked
-                        ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
-                        : "border-gray-200 bg-gray-50 text-gray-800 hover:bg-indigo-50 hover:border-indigo-200"
+                      ${isDisable
+                      ? "border-gray-200 bg-gray-100 text-gray-400 cursor-not-allowed"
+                      : "border-gray-200 bg-gray-50 text-gray-800 hover:bg-indigo-50 hover:border-indigo-200"
                       }`}
-                    disabled={isBooked}
-                    onClick={() => setSelectedSlot(day.label + " " + time.label)}
-                  >
-                    {isBooked ? "✕" : "+"}
+                      disabled={isDisable}
+                      onClick={() => setSelectedSlot(day.label + " " + time.label)}
+                     >
+                    {isDisable ? "✕" : "+"}
                   </button>
                 )
               })}
