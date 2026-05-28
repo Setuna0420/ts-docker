@@ -67,39 +67,22 @@ function ReservationPage() {
   const today = new Date();
   const todayString = `${today.getMonth() + 1}/${today.getDate()}`;
 
-  // 💡 useEffect内で安全に呼び出すためのクリーンなデータ取得関数
+  // 💡 【ここを修正】useEffectの監視対象（[]）を空っぽにして、アプリ起動時の「最初の1回だけ」通信するようにしました！
   useEffect(() => {
-    let isMounted = true;
-
     const loadData = async () => {
-      // 💡 同期的な setState を防ぐため、ローディングの開始を一度非同期の波に乗せる、
-      // もしくは初期値がすでに true なので初回はスキップさせるための安全弁
-      setIsLoading(true);
-
       try {
         const res = await fetch(GAS_URL);
         const data = await res.json();
-
-        if (isMounted) {
-          setBookedSlots(data.bookedSlots || []);
-          setDisabledDates(data.disabledDates || []);
-        }
+        setBookedSlots(data.bookedSlots || []);
+        setDisabledDates(data.disabledDates || []);
       } catch (e) {
         console.error("データの取得に失敗しました", e);
       } finally {
-        if (isMounted) {
-          setIsLoading(false);
-        }
+        setIsLoading(false);
       }
     };
-
     loadData();
-
-    // クリーンアップ関数（データ取得中にユーザーが週を連打したときのバグ防止）
-    return () => {
-      isMounted = false;
-    };
-  }, [dayOffset]);
+  }, []); // 👈 dayOffset を削除！これで週切り替え時の通信がゼロになります
 
   const isFormValid = userName.trim() !== "" && studentId.trim() !== "";
 
@@ -111,7 +94,6 @@ function ReservationPage() {
     return `${Math.abs(dayOffset / 7)}週間前の週`;
   };
 
-  // 🛠️ 再同期用の関数（ボタン操作後に呼ぶ用、useEffectの外なので安全）
   const refreshDataOnly = async () => {
     try {
       const res = await fetch(GAS_URL);
