@@ -3,16 +3,17 @@
 import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 
+// 💡 先ほど作った2つの部品をインポートします
+import { Toast, ToastType } from "./components/Toast"
+import { Modals } from "./components/Modals"
+
 // =============================================================================
 // 1. 定数・外部設定
 // =============================================================================
 const GAS_URL = "https://script.google.com/macros/s/AKfycbz-LqUv0ys35_1rOx4spWmIiO4LoeD1K_bmVyiDmzZ5T7jEJZqucDHdHd4n1pOjkEEuzg/exec";
 
-// =============================================================================
-// 2. 型定義 (TypeScriptインターフェース)
-// =============================================================================
 interface BookedSlot {
-  slotId: string;    // 例: "10:00 2026/05/24"
+  slotId: string;
   userName: string;
   studentId: number;
 }
@@ -22,14 +23,8 @@ interface DisabledDateObject {
   reason?: string;
 }
 
-interface Toast {
-  id: number;
-  message: string;
-  type: "success" | "error";
-}
-
 // =============================================================================
-// 3. 日付・時間生成ヘルパー
+// 2. 日付・時間生成ヘルパー
 // =============================================================================
 const generateInitialDays = (offset: number) => {
   const generateDays = [];
@@ -73,10 +68,9 @@ const getSlotTimestamp = (slotId: string) => {
 };
 
 // =============================================================================
-// 4. メインコンポーネント
+// 3. メインコンポーネント
 // =============================================================================
 function ReservationPage() {
-
   const [dayOffset, setDayOffset] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const saved = sessionStorage.getItem("dayOffset");
@@ -110,7 +104,7 @@ function ReservationPage() {
   const [disabledDates, setDisabledDates] = useState<(string | DisabledDateObject)[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const [toasts, setToasts] = useState<ToastType[]>([]);
 
   const handleWeekChange = (newOffset: number) => {
     setDayOffset(newOffset);
@@ -123,7 +117,6 @@ function ReservationPage() {
       setSelectedSlots(selectedSlots.filter(id => id !== slotId));
       return;
     }
-
     if (selectedSlots.length === 0) {
       setSelectedSlots([slotId]);
     } else if (selectedSlots.length === 1) {
@@ -321,18 +314,8 @@ function ReservationPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 relative font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-300 overscroll-behavior-y-none pb-24 md:pb-12">
 
-      <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
-        {toasts.map(t => (
-          <div
-            key={t.id}
-            className={`p-4 rounded-2xl shadow-2xl border backdrop-blur-md text-xs font-black tracking-wider pointer-events-auto flex items-center bg-slate-900/95 transition-all duration-300 animate-in slide-in-from-top-4
-              ${t.type === "success" ? "border-emerald-500/30 text-emerald-400 shadow-emerald-950" : "border-rose-500/30 text-rose-400 shadow-rose-950"}`}
-          >
-            <span className="mr-2.5 text-sm">{t.type === "success" ? "✓" : "!"}</span>
-            {t.message}
-          </div>
-        ))}
-      </div>
+      {/* 💡 部品化したToastを呼び出します */}
+      <Toast toasts={toasts} />
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
 
@@ -386,7 +369,7 @@ function ReservationPage() {
                     myReservations.map((res, idx) => (
                       <div key={idx} className="flex flex-col gap-1 text-[11px] bg-slate-950 border border-slate-800 p-3 rounded-xl text-slate-300">
                         <div className="flex justify-between items-center gap-2">
-                          {/* ★バグ修正：カレンダーとカラーのターゲットを統一（日付の文字自体に色付け） */}
+                          {/* 📅 日付の文字自体に土日カラーを適用するように修正 */}
                           <span className={`font-black shrink-0 ${res.dayOfWeek === "土" ? "text-blue-400" : res.dayOfWeek === "日" ? "text-rose-400" : "text-slate-100"}`}>
                             📅 {res.date}
                             <span className="ml-1 text-[10px] font-black text-slate-500">
@@ -578,15 +561,14 @@ function ReservationPage() {
                 <div className="border-t border-slate-800 pt-3 mt-2 bg-slate-950/40 p-3 rounded-2xl">
                   <div className="flex gap-1.5 overflow-x-auto pb-2.5 scrollbar-none snap-x">
                     {days.map((day, idx) => {
-                      // ここで正しく定数を定義します
                       const isSelectedDay = activeMobileDayIdx === idx;
                       const isToday = day.label === todayString && dayOffset === 0;
                       return (
                         <button
                           key={day.label}
                           onClick={() => setActiveMobileDayIdx(idx)}
-                          className={`snap-center shrink-0 min-w-[66px] py-2 px-1 rounded-xl border text-center transition-all duration-100 active:scale-95 cursor-pointer 
-        ${isSelectedDay
+                          className={`snap-center shrink-0 min-w-[66px] py-2 px-1 rounded-xl border text-center transition-all duration-100 active:scale-95 cursor-pointer
+                            ${isSelectedDay
                               ? "bg-indigo-600 border-indigo-600 text-white font-black shadow-lg shadow-indigo-950"
                               : isToday
                                 ? "bg-slate-900 border-indigo-500/40 text-indigo-300 font-bold"
@@ -633,99 +615,26 @@ function ReservationPage() {
           </div>
         )}
 
-        {/* 一括予約登録モーダル */}
-        {isBookModalOpen && (
-          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-100">
-            <div className="bg-slate-900 text-slate-100 rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-800 transform scale-100 animate-in zoom-in-95 duration-100">
-              <div className="w-10 h-10 rounded-xl bg-cyan-950/50 text-cyan-400 border border-cyan-800/20 flex items-center justify-center text-sm font-black mb-4">＋</div>
-              <h2 className="text-xl font-black text-slate-100 mb-1">スタジオ一括予約の登録</h2>
-              <p className="text-slate-400 text-xs mb-4">選択中の枠：<span className="font-bold text-cyan-400 font-mono">{getSortedSelectedLabels()}</span></p>
-
-              <div className="space-y-4 text-left mb-6">
-                <div>
-                  <div className="flex justify-between items-center mb-1.5 pl-1">
-                    <label className="block text-[11px] font-black text-slate-400">利用代表者名</label>
-                    <span className={`text-[10px] font-black ${userName.trim().length > 10 ? "text-rose-400 animate-pulse" : "text-slate-600"}`}>
-                      {userName.trim().length}/10文字
-                    </span>
-                  </div>
-                  {/* ★バグ修正：inputMode="text" を追加して、直前に数字を選んでいても確実に日本語キーボードを開かせる */}
-                  <input
-                    type="text"
-                    inputMode="text"
-                    maxLength={12}
-                    placeholder="名前を入力 (10文字以内)"
-                    value={userName}
-                    disabled={isSubmitting}
-                    onChange={(e) => setUserName(e.target.value)}
-                    className="border border-slate-800 p-3 rounded-2xl w-full text-base text-center font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-slate-950 text-slate-100"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-black text-slate-400 mb-1.5 pl-1">学籍番号 <span className={`text-[10px] font-black ${isStudentIdValid ? "text-emerald-400" : "text-slate-600"}`}>(7桁の数字)</span></label>
-                  <input type="number" placeholder="7桁の数字を入力" value={studentId} disabled={isSubmitting} onChange={(e) => setStudentId(e.target.value)} className="border border-slate-800 p-3 rounded-2xl w-full text-base text-center font-bold focus:outline-none focus:ring-2 focus:ring-cyan-500 bg-slate-950 text-slate-100 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" />
-                </div>
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={handleBookSubmit}
-                  disabled={!isFormValid || isSubmitting}
-                  className={`w-full font-black py-3 rounded-2xl transition-all shadow-md text-xs tracking-wider active:scale-95 duration-100 cursor-pointer flex items-center justify-center gap-2 
-                    ${isFormValid && !isSubmitting ? "bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950" : "bg-slate-800 text-slate-600 border border-slate-800/50 cursor-not-allowed shadow-none"}`}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.01M9 22h6a2 2 0 002-2V4a2 2 0 00-2-2H9a2 2 0 00-2 2v16a2 2 0 002 2zM7 8h10M7 12h10M7 16h10" />
-                  </svg>
-                  {isSubmitting ? "連続書き込み中..." : "まとめて予約を確定する"}
-                </button>
-                <button onClick={() => setIsBookModalOpen(false)} disabled={isSubmitting} className="w-full bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800 font-black py-3 rounded-2xl text-xs transition-colors cursor-pointer">戻る</button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* 予約の解除用モーダル */}
-        {cancelTargetSlot && currentCancelBooking && (
-          <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-4 z-50 animate-in fade-in duration-100">
-            <div className="bg-slate-900 text-slate-100 rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-800 transform scale-100 animate-in zoom-in-95 duration-100">
-              <div className="w-10 h-10 rounded-xl bg-rose-950/50 text-rose-400 border border-rose-800/20 flex items-center justify-center text-sm font-black mb-4">✕</div>
-              <h2 className="text-xl font-black text-slate-100 mb-1">予約の解除</h2>
-              <p className="text-slate-400 text-xs mb-4">選択枠：<span className="font-bold text-cyan-400 font-mono">{cancelTargetSlot.split(" ")[0]} ({cancelTargetSlot.split(" ")[1].split("/")[1]}/{cancelTargetSlot.split(" ")[1].split("/")[2]})</span></p>
-
-              <div className="mb-4 bg-slate-950 p-4 rounded-2xl border border-slate-800 text-center shadow-inner">
-                <span className="block text-[9px] font-black text-slate-600 tracking-wider mb-1">現在の予約代表者</span>
-                <span className="text-sm font-black text-slate-300 truncate block px-2">{userName} さん</span>
-              </div>
-
-              <div className="mb-6">
-                <label className="block text-[11px] font-black text-slate-400 mb-1.5 pl-1 text-left">本人確認のため学籍番号(7桁)を入力</label>
-                <input
-                  type="number"
-                  placeholder="学籍番号を入力"
-                  value={cancelInputId}
-                  onChange={(e) => setCancelInputId(e.target.value)}
-                  className="border border-slate-800 p-3 rounded-2xl w-full text-base text-center font-bold focus:outline-none focus:ring-2 focus:ring-rose-500 bg-slate-950 text-slate-100 font-mono [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                />
-              </div>
-
-              <div className="flex flex-col gap-2">
-                <button
-                  onClick={handleCancelSubmit}
-                  disabled={!isCancelValid || isSubmitting}
-                  className={`w-full text-white font-black py-3 rounded-2xl text-xs tracking-wider transition-all shadow-md active:scale-95 duration-100 cursor-pointer flex items-center justify-center gap-2
-                    ${isCancelValid && !isSubmitting ? "bg-rose-600 hover:bg-rose-500 shadow-rose-950" : "bg-slate-800 text-slate-500 border border-slate-800/50 cursor-not-allowed shadow-none"}`}
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                  </svg>
-                  {isSubmitting ? "処理中..." : "この予約を取り消す"}
-                </button>
-                <button onClick={() => setCancelTargetSlot(null)} disabled={isSubmitting} className="w-full bg-slate-950 hover:bg-slate-800 text-slate-400 border border-slate-800 font-black py-3 rounded-2xl text-xs transition-colors cursor-pointer">閉じる</button>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* 💡 切り出した各種モーダルコンポーネントをここに設置し、プロパティを渡します */}
+        <Modals
+          isBookModalOpen={isBookModalOpen}
+          setIsBookModalOpen={setIsBookModalOpen}
+          getSortedSelectedLabels={getSortedSelectedLabels}
+          userName={userName}
+          setUserName={setUserName}
+          studentId={studentId}
+          setStudentId={setStudentId}
+          isFormValid={isFormValid}
+          isSubmitting={isSubmitting}
+          handleBookSubmit={handleBookSubmit}
+          cancelTargetSlot={cancelTargetSlot}
+          setCancelTargetSlot={setCancelTargetSlot}
+          currentCancelBooking={currentCancelBooking}
+          cancelInputId={cancelInputId}
+          setCancelInputId={setCancelInputId}
+          isCancelValid={isCancelValid}
+          handleCancelSubmit={handleCancelSubmit}
+        />
 
       </div>
     </div>
