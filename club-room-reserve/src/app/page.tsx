@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react"
 import dynamic from "next/dynamic"
 
-// 💡 先ほど作った2つの部品をインポートします
 import { Toast, ToastType } from "./components/Toast"
 import { Modals } from "./components/Modals"
 
@@ -97,13 +96,13 @@ function ReservationPage() {
 
   const [userName, setUserName] = useState("");
   const [studentId, setStudentId] = useState("");
-  const [cancelInputId, setCancelInputId] = useState("");
   const [myReservationQuery, setMyReservationQuery] = useState("");
 
   const [bookedSlots, setBookedSlots] = useState<BookedSlot[]>([]);
   const [disabledDates, setDisabledDates] = useState<(string | DisabledDateObject)[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmittingCancel, setIsSubmittingCancel] = useState(false); // 💡 キャンセル専用のステート
   const [toasts, setToasts] = useState<ToastType[]>([]);
 
   const handleWeekChange = (newOffset: number) => {
@@ -173,7 +172,16 @@ function ReservationPage() {
   const isStudentIdValid = /^[0-9]{7}$/.test(studentId.trim());
   const isNameValid = userName.trim().length > 0 && userName.trim().length <= 10;
   const isFormValid = isNameValid && isStudentIdValid;
-  const isCancelValid = currentCancelBooking && Number(cancelInputId) === currentCancelBooking.studentId;
+
+  const isSelectedSlotsContinuous = () => {
+    if (selectedSlots.length <= 1) return true;
+    if (selectedSlots.length === 2) {
+      const t1 = getSlotTimestamp(selectedSlots[0]);
+      const t2 = getSlotTimestamp(selectedSlots[1]);
+      return Math.abs(t1 - t2) === 3600000;
+    }
+    return false;
+  };
 
   const getWeekLabel = () => {
     if (dayOffset === 0) return "今週";
@@ -203,7 +211,7 @@ function ReservationPage() {
   };
 
   const handleBookSubmit = async () => {
-    if (isSubmitting || selectedSlots.length === 0) return;
+    if (isSubmitting || selectedSlots.length === 0 || !isSelectedSlotsContinuous()) return;
     setIsSubmitting(true);
 
     let hasError = false;
@@ -245,9 +253,15 @@ function ReservationPage() {
     setIsSubmitting(false);
   };
 
+  // 💡 【仕様変更：即キャンセル（確認ダイアログ付き）】
   const handleCancelSubmit = async () => {
-    if (isSubmitting || !cancelTargetSlot) return;
-    setIsSubmitting(true);
+    if (isSubmittingCancel || !cancelTargetSlot) return;
+
+    // 誤タップによる誤消去を完全に防ぐ確認用ポップアップ
+    const confirmDelete = window.confirm("本当にこの予約をキャンセルしてもよろしいですか？\n※この操作は取り消せません。");
+    if (!confirmDelete) return;
+
+    setIsSubmittingCancel(true);
     try {
       const res = await fetch(GAS_URL, {
         method: "POST",
@@ -258,7 +272,6 @@ function ReservationPage() {
       if (result.success) {
         setBookedSlots(prev => prev.filter(b => b.slotId !== cancelTargetSlot));
         setCancelTargetSlot(null);
-        setCancelInputId("");
         showToast("予約をキャンセルしました");
       } else {
         showToast("処理に失敗しました", "error");
@@ -267,7 +280,7 @@ function ReservationPage() {
     } catch (e) {
       showToast("通信エラーが発生しました", "error");
     } finally {
-      setIsSubmitting(false);
+      setIsSubmittingCancel(false);
     }
   };
 
@@ -314,7 +327,6 @@ function ReservationPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 relative font-sans antialiased selection:bg-cyan-500/20 selection:text-cyan-300 overscroll-behavior-y-none pb-24 md:pb-12">
 
-      {/* 💡 部品化したToastを呼び出します */}
       <Toast toasts={toasts} />
 
       <div className="max-w-7xl mx-auto p-4 md:p-8">
@@ -322,7 +334,7 @@ function ReservationPage() {
         <header className="text-center mb-6 md:mb-12 pt-4">
           <div className="flex items-center justify-center gap-2.5 mb-1">
             <svg className="w-6 h-6 text-cyan-400" fill="currentColor" viewBox="0 0 24 24"><path d="M19 11h-6V3l-7 9h6v7l7-9z" /></svg>
-            <h1 className="text-2xl md:text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-indigo-400 to-purple-400">
+            <h1 className="text-2xl md:text-4xl font-black tracking-tighter bg-clip-text text-transparent bg-linear-to-r from-cyan-400 via-indigo-400 to-purple-400">
               音スタ 予約システム
             </h1>
           </div>
@@ -367,20 +379,27 @@ function ReservationPage() {
                 <div className="space-y-2 max-h-55 overflow-y-auto pr-1">
                   {myReservations.length > 0 ? (
                     myReservations.map((res, idx) => (
-                      <div key={idx} className="flex flex-col gap-1 text-[11px] bg-slate-950 border border-slate-800 p-3 rounded-xl text-slate-300">
-                        <div className="flex justify-between items-center gap-2">
-                          {/* 📅 日付の文字自体に土日カラーを適用するように修正 */}
-                          <span className={`font-black shrink-0 ${res.dayOfWeek === "土" ? "text-blue-400" : res.dayOfWeek === "日" ? "text-rose-400" : "text-slate-100"}`}>
-                            📅 {res.date}
-                            <span className="ml-1 text-[10px] font-black text-slate-500">
-                              ({res.dayOfWeek})
+                      <div key={idx} className="flex items-center justify-between gap-2 text-[11px] bg-slate-950 border border-slate-800 p-3 rounded-xl text-slate-300 hover:border-slate-700 transition-colors">
+                        <div className="flex flex-col gap-1 min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <span className={`font-black shrink-0 ${res.dayOfWeek === "土" ? "text-blue-400" : res.dayOfWeek === "日" ? "text-rose-400" : "text-slate-100"}`}>
+                              📅 {res.date}
+                              <span className="ml-1 text-[10px] font-black text-slate-500">({res.dayOfWeek})</span>
                             </span>
-                          </span>
-                          <span className="text-[9px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/30 px-2 py-0.5 rounded-full font-black truncate max-w-24">
-                            {res.userName}さん
-                          </span>
+                            <span className="text-[9px] text-cyan-400 bg-cyan-950/40 border border-cyan-800/30 px-2 py-0.5 rounded-full font-black truncate max-w-20">
+                              {res.userName}さん
+                            </span>
+                          </div>
+                          <div className="text-slate-500 font-bold font-mono">{res.time} 〜</div>
                         </div>
-                        <div className="text-slate-500 font-bold font-mono">{res.time} 〜</div>
+
+                        <button
+                          onClick={() => setCancelTargetSlot(res.slotId)}
+                          className="w-7 h-7 bg-rose-950/30 hover:bg-rose-900/50 text-rose-400 border border-rose-900/30 rounded-lg font-black text-xs flex items-center justify-center transition-all active:scale-90 cursor-pointer shrink-0"
+                          title="この枠をキャンセル"
+                        >
+                          ✕
+                        </button>
                       </div>
                     ))
                   ) : (
@@ -403,7 +422,7 @@ function ReservationPage() {
                     {days.map((day) => {
                       const isToday = day.label === todayString && dayOffset === 0;
                       return (
-                        <div key={day.label} className={`text-xs py-2 rounded-2xl border ${isToday ? "bg-gradient-to-b from-indigo-950 to-slate-900 border-indigo-500/40 text-indigo-200" : "border-transparent bg-slate-950/40"}`}>
+                        <div key={day.label} className={`text-xs py-2 rounded-2xl border ${isToday ? "bg-linear-to-brom-indigo-950 to-slate-900 border-indigo-500/40 text-indigo-200" : "border-transparent bg-slate-950/40"}`}>
                           <div className={`font-black text-sm ${day.dayOfWeek === "土" ? "text-blue-400" : day.dayOfWeek === "日" ? "text-rose-400" : "text-slate-200"}`}>{day.label}</div>
                           <div className={`text-[9px] font-black mt-0.5 ${isToday ? "text-cyan-400" : "text-slate-600"}`}>({day.dayOfWeek})</div>
                         </div>
@@ -415,7 +434,7 @@ function ReservationPage() {
                     const startHour = parseInt(time.label);
                     return (
                       <div key={time.label} className="grid grid-cols-8 gap-2.5 mb-2.5 text-center items-center">
-                        <div className="sticky left-0 z-10 text-slate-400 font-black flex items-center justify-center h-full text-xs border border-slate-800 rounded-2xl py-3 bg-gradient-to-r from-slate-950 to-slate-900 font-mono">
+                        <div className="sticky left-0 z-10 text-slate-400 font-black flex items-center justify-center h-full text-xs border border-slate-800 rounded-2xl py-3 bg-linear-to-r from-slate-950 to-slate-900 font-mono">
                           {startHour}:00
                         </div>
 
@@ -426,48 +445,54 @@ function ReservationPage() {
                           const bookingData = bookedSlots.find(b => b.slotId === slotId);
 
                           const universityStatus = checkDisabledStatus(day.compareFormat, time.label);
-                          const isSystemDisabled = (!isWeekend && isClassTime) || universityStatus.isDisabled;
+                          const isUniversityDisabled = universityStatus.isDisabled;
+                          const isSystemDisabled = (!isWeekend && isClassTime) || isUniversityDisabled;
 
                           const slotDate = new Date(day.dateObj);
                           slotDate.setHours(startHour, 0, 0, 0);
                           const isPast = slotDate < today;
-                          const isDisabled = isSystemDisabled || isPast;
 
+                          const isDisabled = (isSystemDisabled && !bookingData) || (isPast && !bookingData);
                           const isSelected = selectedSlots.includes(slotId);
+
+                          const stripeClass = isSystemDisabled
+                            ? "bg-[linear-gradient(135deg,#020617_25%,#0f172a_25%,#0f172a_50%,#020617_50%,#020617_75%,#0f172a_75%,#0f172a_100%)] bg-[length:16px_16px] opacity-40 border-slate-950/50"
+                            : "";
 
                           return (
                             <button
                               key={`${time.label}-${day.label}`}
-                              className={`rounded-2xl py-3 transition-all font-black text-xs min-h-15 flex flex-col items-center justify-center border active:scale-[0.97] px-1 duration-100 cursor-pointer
+                              className={`rounded-2xl py-3 transition-all font-black text-xs min-h-15 flex flex-col items-center justify-center border active:scale-[0.97] px-1 duration-100
+                                ${stripeClass}
                                 ${isDisabled
                                   ? "border-slate-950 bg-slate-950/30 text-slate-800 cursor-not-allowed"
                                   : bookingData
-                                    ? "border-indigo-500/20 bg-indigo-950/30 text-indigo-200 hover:bg-rose-950/40 hover:text-rose-400 hover:border-rose-500/40"
+                                    ? isPast
+                                      ? "border-slate-800/60 bg-slate-900/40 text-slate-600 cursor-not-allowed"
+                                      : "border-indigo-500/20 bg-indigo-950/30 text-indigo-200 hover:bg-rose-950/40 hover:text-rose-400 hover:border-rose-500/40 cursor-pointer"
                                     : isSelected
-                                      ? "border-cyan-400 bg-cyan-950/60 text-cyan-300 shadow-lg shadow-cyan-950/50 scale-[0.98]"
-                                      : "border-slate-800/80 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:border-cyan-500"}`}
-                              disabled={isDisabled}
+                                      ? "border-cyan-400 bg-cyan-950/60 text-cyan-300 shadow-lg shadow-cyan-950/50 scale-[0.98] cursor-pointer"
+                                      : "border-slate-800/80 bg-slate-950 text-slate-400 hover:bg-slate-800 hover:border-cyan-500 cursor-pointer"}`}
+                              disabled={isDisabled || (isPast && !!bookingData)}
                               onClick={() => {
                                 if (bookingData) {
                                   setCancelTargetSlot(slotId);
-                                  setUserName(bookingData.userName);
-                                  setCancelInputId("");
                                 } else {
                                   handleSlotClick(slotId);
                                 }
                               }}
                             >
                               {universityStatus.isDisabled ? (
-                                <span className="text-[9px] text-rose-400 font-black tracking-tight leading-tight line-clamp-2 px-0.5">{universityStatus.reason}</span>
-                              ) : isSystemDisabled ? <span className="text-slate-800 font-normal text-xs">✕</span>
-                                : isPast ? <span className="text-[10px] text-slate-800 font-medium">終了</span>
-                                  : bookingData ? (
-                                    <div className="w-full truncate px-0.5">
-                                      <div className="text-xs font-black tracking-tight text-indigo-300 truncate">{bookingData.userName}</div>
-                                      <div className="text-[9px] text-slate-500 font-mono mt-0.5 font-bold">{bookingData.studentId}</div>
-                                    </div>
-                                  ) : isSelected ? (
-                                    <span className="text-cyan-300 font-black text-xs animate-pulse">✓ 選択中</span>
+                                <span className="text-[9px] text-rose-500 font-bold tracking-tight leading-tight line-clamp-2 px-0.5">{universityStatus.reason}</span>
+                              ) : isSystemDisabled ? <span className="text-slate-700 font-normal text-xs">✕ 授業</span>
+                                : bookingData ? (
+                                  <div className="w-full truncate px-0.5">
+                                    <div className={`text-xs font-black tracking-tight truncate ${isPast ? "text-slate-600 line-through" : "text-indigo-300"}`}>{bookingData.userName}</div>
+                                    <div className={`text-[9px] font-mono mt-0.5 font-bold ${isPast ? "text-slate-700" : "text-slate-500"}`}>{bookingData.studentId}</div>
+                                  </div>
+                                ) : isPast ? <span className="text-[10px] text-slate-800 font-medium">終了</span>
+                                  : isSelected ? (
+                                    <span className="text-cyan-300 font-black text-xs animate-pulse">✓ 選択</span>
                                   ) : <span className="text-slate-700 font-black text-sm">+</span>}
                             </button>
                           )
@@ -500,51 +525,57 @@ function ReservationPage() {
 
                     const bookingData = bookedSlots.find(b => b.slotId === slotId);
                     const universityStatus = checkDisabledStatus(day.compareFormat, time.label);
-                    const isSystemDisabled = (!(day.dayOfWeek === "日" || day.dayOfWeek === "土") && time.label >= "10:00" && time.label < "18:00") || universityStatus.isDisabled;
+                    const isUniversityDisabled = universityStatus.isDisabled;
+                    const isSystemDisabled = (!(day.dayOfWeek === "日" || day.dayOfWeek === "土") && time.label >= "10:00" && time.label < "18:00") || isUniversityDisabled;
 
                     const slotDate = new Date(day.dateObj);
                     slotDate.setHours(startHour, 0, 0, 0);
                     const isPast = slotDate < today;
-                    const isDisabled = isSystemDisabled || isPast;
 
+                    const isDisabled = (isSystemDisabled && !bookingData) || (isPast && !bookingData);
                     const isSelected = selectedSlots.includes(slotId);
+
+                    const stripeClass = isSystemDisabled && !bookingData
+                      ? "bg-[linear-gradient(135deg,#020617_25%,#0f172a_25%,#0f172a_50%,#020617_50%,#020617_75%,#0f172a_75%,#0f172a_100%)] bg-[length:16px_16px] opacity-40"
+                      : "";
 
                     return (
                       <div key={time.label} className="flex items-center gap-3">
                         <div className="w-12 text-center font-black text-xs text-slate-500 font-mono">{time.label}</div>
                         <button
-                          className={`flex-1 rounded-2xl py-3.5 px-4 text-left transition-all font-bold text-sm min-h-14 border flex items-center justify-between active:scale-[0.98] duration-100 cursor-pointer
+                          className={`flex-1 rounded-2xl py-3.5 px-4 text-left transition-all font-bold text-sm min-h-14 border flex items-center justify-between duration-100
+                            ${stripeClass}
                             ${isDisabled
                               ? "border-slate-950 bg-slate-950/30 text-slate-700 cursor-not-allowed"
                               : bookingData
-                                ? "border-indigo-500/20 bg-indigo-950/20 text-indigo-200"
+                                ? isPast
+                                  ? "border-slate-900 bg-slate-950/20 text-slate-600"
+                                  : "border-indigo-500/20 bg-indigo-950/20 text-indigo-200 active:scale-[0.98] cursor-pointer"
                                 : isSelected
-                                  ? "border-cyan-400 bg-cyan-950/40 text-cyan-300"
-                                  : "border-slate-800/80 bg-slate-950 text-slate-400"}`}
-                          disabled={isDisabled}
+                                  ? "border-cyan-400 bg-cyan-950/40 text-cyan-300 active:scale-[0.98] cursor-pointer"
+                                  : "border-slate-800/80 bg-slate-950 text-slate-400 active:scale-[0.98] cursor-pointer"}`}
+                          disabled={isDisabled || (isPast && !!bookingData)}
                           onClick={() => {
                             if (bookingData) {
                               setCancelTargetSlot(slotId);
-                              setUserName(bookingData.userName);
-                              setCancelInputId("");
                             } else {
                               handleSlotClick(slotId);
                             }
                           }}
                         >
                           {universityStatus.isDisabled ? (
-                            <span className="text-[11px] text-rose-400 font-black flex items-center gap-1">✕ <span className="bg-rose-950/30 border border-rose-900/20 px-2 py-0.5 rounded-lg text-[10px]">{universityStatus.reason}</span></span>
-                          ) : isSystemDisabled ? <span className="text-slate-700 font-normal text-[11px]">✕ 授業のため貸切</span>
-                            : isPast ? <span className="text-[11px] text-slate-700 font-normal">🕒 利用不可（終了）</span>
-                              : bookingData ? (
-                                <div className="flex justify-between items-center w-full min-w-0 gap-2">
-                                  <span className="font-black text-slate-200 truncate flex-1">👤 {bookingData.userName}</span>
-                                  <span className="text-[10px] text-slate-500 bg-slate-950 border border-slate-800 px-2 py-0.5 rounded-md font-mono font-bold shrink-0">{bookingData.studentId}</span>
-                                </div>
-                              ) : isSelected ? (
+                            <span className="text-[11px] text-rose-500 font-black flex items-center gap-1">✕ <span className="bg-rose-950/10 border border-rose-900/20 px-2 py-0.5 rounded-lg text-[10px]">{universityStatus.reason}</span></span>
+                          ) : isSystemDisabled ? <span className="text-slate-700 font-normal text-[11px]">✕ 授業のため利用不可</span>
+                            : bookingData ? (
+                              <div className="flex justify-between items-center w-full min-w-0 gap-2">
+                                <span className={`font-black truncate flex-1 ${isPast ? "text-slate-500 line-through" : "text-slate-200"}`}>👤 {bookingData.userName} {isPast && "(終了)"}</span>
+                                <span className={`text-[10px] bg-slate-950 border px-2 py-0.5 rounded-md font-mono font-bold shrink-0 ${isPast ? "text-slate-700 border-slate-900" : "text-slate-500 border-slate-800"}`}>{bookingData.studentId}</span>
+                              </div>
+                            ) : isPast ? <span className="text-[11px] text-slate-700 font-normal">🕒 利用不可（終了）</span>
+                              : isSelected ? (
                                 <div className="flex justify-between items-center w-full text-cyan-400 font-black">
-                                  <span>✓ 連続選択中（最大2コマ）</span>
-                                  <span className="text-xs bg-cyan-950 border border-cyan-800 px-2 py-0.5 rounded-lg">確保</span>
+                                  <span>✓ 選択中</span>
+                                  <span className="text-xs bg-cyan-950 border border-cyan-800 px-2 py-0.5 rounded-lg">キープ</span>
                                 </div>
                               ) : (
                                 <div className="flex justify-between items-center w-full text-slate-600">
@@ -567,20 +598,20 @@ function ReservationPage() {
                         <button
                           key={day.label}
                           onClick={() => setActiveMobileDayIdx(idx)}
-                          className={`snap-center shrink-0 min-w-[66px] py-2 px-1 rounded-xl border text-center transition-all duration-100 active:scale-95 cursor-pointer
+                          className={`snap-center shrink-0 min-w-17 py-2.5 px-1 rounded-xl border text-center transition-all duration-100 active:scale-95 cursor-pointer
                             ${isSelectedDay
-                              ? "bg-indigo-600 border-indigo-600 text-white font-black shadow-lg shadow-indigo-950"
+                              ? "bg-linear-to-b from-indigo-500 to-indigo-600 border-indigo-400 text-white font-black shadow-xl shadow-indigo-950/80 scale-105 ring-2 ring-indigo-400/30"
                               : isToday
-                                ? "bg-slate-900 border-indigo-500/40 text-indigo-300 font-bold"
-                                : "bg-slate-900/40 border-slate-800/80 text-slate-500"}`}
+                                ? "bg-slate-900 border-indigo-500/40 text-indigo-300 font-bold opacity-70"
+                                : "bg-slate-900/20 border-slate-800/60 text-slate-600 opacity-50"}`}
                         >
-                          <div className={`text-xs font-black ${isSelectedDay ? "text-white" : day.dayOfWeek === "土" ? "text-blue-400" : day.dayOfWeek === "日" ? "text-rose-400" : "text-slate-400"}`}>{day.label}</div>
-                          <div className={`text-[9px] font-bold ${isSelectedDay ? "text-indigo-200" : "text-slate-600"}`}>({day.dayOfWeek})</div>
+                          <div className={`text-xs font-black ${isSelectedDay ? "text-white" : day.dayOfWeek === "土" ? "text-blue-500" : day.dayOfWeek === "日" ? "text-rose-500" : "text-slate-400"}`}>{day.label}</div>
+                          <div className={`text-[9px] font-bold ${isSelectedDay ? "text-indigo-100" : "text-slate-600"}`}>({day.dayOfWeek})</div>
                         </button>
                       )
                     })}
                   </div>
-                  <div className="grid grid-cols-2 gap-2.5 mt-1">
+                  <div className="grid grid-cols-2 gap-2.5 mt-2">
                     <button onClick={() => handleWeekChange(dayOffset - 7)} className="bg-slate-900 text-slate-400 border border-slate-800 font-black py-2.5 px-3 rounded-xl text-xs active:scale-95 cursor-pointer">← 前の週</button>
                     <button onClick={() => handleWeekChange(dayOffset + 7)} className="bg-slate-900 text-slate-400 border border-slate-800 font-black py-2.5 px-3 rounded-xl text-xs active:scale-95 cursor-pointer">次の週 →</button>
                   </div>
@@ -595,11 +626,15 @@ function ReservationPage() {
 
         {/* 画面下部の一括予約トリガーパネル */}
         {selectedSlots.length > 0 && (
-          <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:max-w-sm z-40 bg-gradient-to-r from-cyan-950 to-slate-900 border-2 border-cyan-500/40 p-4 rounded-3xl shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-8 duration-200 flex flex-col gap-3">
+          <div className="fixed bottom-4 left-4 right-4 md:left-auto md:right-8 md:max-w-sm z-40 bg-linear-to-r from-cyan-950 to-slate-900 border-2 border-cyan-500/40 p-4 rounded-3xl shadow-2xl backdrop-blur-md animate-in slide-in-from-bottom-8 duration-200 flex flex-col gap-3">
             <div className="flex justify-between items-center">
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-black text-cyan-400 tracking-wider uppercase">BULK RESERVATION MODE</p>
-                <p className="text-xs font-bold text-slate-300 mt-0.5 truncate font-mono">{getSortedSelectedLabels()}</p>
+                {isSelectedSlotsContinuous() ? (
+                  <p className="text-xs font-bold text-slate-300 mt-0.5 truncate font-mono">{getSortedSelectedLabels()}</p>
+                ) : (
+                  <p className="text-xs font-black text-rose-400 mt-0.5 animate-pulse">⚠️ 離れたコマは同時予約できません</p>
+                )}
               </div>
               <span className="text-xs font-black bg-cyan-500 text-slate-950 px-2.5 py-1 rounded-xl shadow-md font-mono shrink-0 ml-2">
                 {selectedSlots.length}/2 コマ
@@ -607,7 +642,15 @@ function ReservationPage() {
             </div>
             <div className="grid grid-cols-3 gap-2">
               <button onClick={() => setSelectedSlots([])} className="bg-slate-950 hover:bg-slate-800 text-slate-400 font-black text-[11px] py-2.5 rounded-xl border border-slate-800 active:scale-95 cursor-pointer">クリア</button>
-              <button onClick={() => setIsBookModalOpen(true)} className="col-span-2 bg-cyan-500 hover:bg-cyan-400 text-slate-950 font-black text-xs py-2.5 rounded-xl active:scale-95 shadow-lg shadow-cyan-950/40 cursor-pointer flex items-center justify-center gap-1.5">
+
+              <button
+                onClick={() => setIsBookModalOpen(true)}
+                disabled={!isSelectedSlotsContinuous()}
+                className={`col-span-2 font-black text-xs py-2.5 rounded-xl active:scale-95 shadow-lg flex items-center justify-center gap-1.5 duration-100
+                  ${isSelectedSlotsContinuous()
+                    ? "bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950/40 cursor-pointer"
+                    : "bg-slate-800 text-slate-600 border border-slate-800/50 cursor-not-allowed shadow-none"}`}
+              >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
                 予約手続きへ
               </button>
@@ -615,11 +658,12 @@ function ReservationPage() {
           </div>
         )}
 
-        {/* 💡 切り出した各種モーダルコンポーネントをここに設置し、プロパティを渡します */}
+        {/* 💡 Modalsコンポーネントに必要なPropsを最新化して受け渡し */}
         <Modals
           isBookModalOpen={isBookModalOpen}
           setIsBookModalOpen={setIsBookModalOpen}
-          getSortedSelectedLabels={getSortedSelectedLabels}
+          selectedSlots={selectedSlots}
+          setSelectedSlots={setSelectedSlots} // 💡 モーダル内個別解除のために追加
           userName={userName}
           setUserName={setUserName}
           studentId={studentId}
@@ -630,10 +674,8 @@ function ReservationPage() {
           cancelTargetSlot={cancelTargetSlot}
           setCancelTargetSlot={setCancelTargetSlot}
           currentCancelBooking={currentCancelBooking}
-          cancelInputId={cancelInputId}
-          setCancelInputId={setCancelInputId}
-          isCancelValid={isCancelValid}
           handleCancelSubmit={handleCancelSubmit}
+          isSubmittingCancel={isSubmittingCancel} // 💡 キャンセル専用の送信ローディング
         />
 
       </div>
