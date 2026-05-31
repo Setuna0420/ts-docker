@@ -6,8 +6,8 @@ interface ModalsProps {
     // 一括予約モーダル用
     isBookModalOpen: boolean;
     setIsBookModalOpen: (open: boolean) => void;
-    selectedSlots: string[]; // 💡 個別解除のために追加
-    setSelectedSlots: (slots: string[]) => void; // 💡 個別解除のために追加
+    selectedSlots: string[];
+    setSelectedSlots: (slots: string[]) => void;
     userName: string;
     setUserName: (name: string) => void;
     studentId: string;
@@ -20,8 +20,8 @@ interface ModalsProps {
     cancelTargetSlot: string | null;
     setCancelTargetSlot: (slot: string | null) => void;
     currentCancelBooking: { userName: string; studentId: number } | undefined;
-    handleCancelSubmit: () => Promise<void>; // 💡 引数や不要な変数を整理
-    isSubmittingCancel: boolean; // 💡 キャンセル専用のローディング状態
+    handleCancelSubmit: () => Promise<void>;
+    isSubmittingCancel: boolean;
 }
 
 export function Modals({
@@ -43,7 +43,7 @@ export function Modals({
     isSubmittingCancel
 }: ModalsProps) {
 
-    // スロット名を見やすく整形するヘルパー (例: "12:00 2026/05/31" -> "5/31 12:00")
+    // スロット名を見やすく整形するヘルパー
     const formatSlotLabel = (slotId: string) => {
         const [timePart, datePart] = slotId.split(" ");
         const [, month, day] = datePart.split("/");
@@ -54,7 +54,6 @@ export function Modals({
     const handleRemoveSlotInModal = (slotId: string) => {
         const updated = selectedSlots.filter(id => id !== slotId);
         setSelectedSlots(updated);
-        // もしコマが全部外されたら自動的にモーダルを閉じる
         if (updated.length === 0) {
             setIsBookModalOpen(false);
         }
@@ -68,7 +67,6 @@ export function Modals({
                     <div className="bg-slate-900 text-slate-100 rounded-3xl p-6 shadow-2xl max-w-sm w-full border border-slate-800 transform scale-100 animate-in zoom-in-95 duration-100">
                         <h2 className="text-xl font-black text-slate-100 mb-3">スタジオ予約の登録</h2>
 
-                        {/* 💡 【新機能】選択中のコマをその場で個別に削れるようにしました */}
                         <div className="mb-4 text-left">
                             <label className="block text-[10px] font-black text-slate-500 uppercase tracking-wider mb-1.5 pl-1">選択中のコマ（タップで解除）</label>
                             <div className="flex flex-wrap gap-1.5">
@@ -123,7 +121,7 @@ export function Modals({
                                 onClick={handleBookSubmit}
                                 disabled={!isFormValid || isSubmitting}
                                 className={`w-full font-black py-3 rounded-2xl transition-all shadow-md text-xs tracking-wider active:scale-95 duration-100 cursor-pointer flex items-center justify-center gap-2 
-                  ${isFormValid && !isSubmitting ? "bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950" : "bg-slate-800 text-slate-600 border border-slate-800/50 cursor-not-allowed shadow-none"}`}
+                                  ${isFormValid && !isSubmitting ? "bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-cyan-950" : "bg-slate-800 text-slate-600 border border-slate-800/50 cursor-not-allowed shadow-none"}`}
                             >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 6v.01M9 22h6a2 2 0 002-2V4a2 2 0 00-2-2H9a2 2 0 00-2 2v16a2 2 0 002 2zM7 8h10M7 12h10M7 16h10" />
@@ -143,7 +141,6 @@ export function Modals({
                         <h2 className="text-xl font-black text-slate-100 mb-1">予約の解除確認</h2>
                         <p className="text-slate-400 text-xs mb-5">対象の枠：<span className="font-bold text-rose-400 font-mono">{formatSlotLabel(cancelTargetSlot)}</span></p>
 
-                        {/* 💡 学籍番号入力を撤廃し、シンプルに誰の予約かだけを大きく見せる親切デザイン */}
                         <div className="mb-6 bg-slate-950 p-5 rounded-2xl border border-slate-800 text-center shadow-inner">
                             <span className="block text-[9px] font-black text-slate-600 tracking-wider mb-1.5 uppercase">RESERVATION HOLDER</span>
                             <div className="text-base font-black text-slate-200 truncate px-2">{currentCancelBooking.userName} さん</div>
@@ -151,12 +148,13 @@ export function Modals({
                         </div>
 
                         <div className="flex flex-col gap-2">
+                            {/* 💡 内側のバグっていたSVGを綺麗に修正し、通信中は赤い影が100%消えるプロ仕様に！ */}
                             <button
                                 onClick={handleCancelSubmit}
                                 disabled={isSubmittingCancel}
-                                className="w-full text-white font-black py-3 rounded-2xl text-xs tracking-wider transition-all shadow-md active:scale-95 duration-100 bg-rose-600 hover:bg-rose-500 shadow-rose-950 cursor-pointer flex items-center justify-center gap-2 disabled:bg-slate-800 disabled:text-slate-500 disabled:cursor-not-allowed"
+                                className="w-full text-white font-black py-3 rounded-2xl text-xs tracking-wider transition-all shadow-md active:scale-[0.98] duration-100 bg-rose-600 hover:bg-rose-500 shadow-rose-950 cursor-pointer flex items-center justify-center gap-2 disabled:bg-slate-800 disabled:text-slate-500 disabled:shadow-none disabled:cursor-not-allowed"
                             >
-                                <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-4v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                                 </svg>
                                 {isSubmittingCancel ? "削除データを送信中..." : "この予約を取り消す"}

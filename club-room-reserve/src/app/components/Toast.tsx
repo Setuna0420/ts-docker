@@ -14,7 +14,10 @@ interface ToastProps {
 
 export function Toast({ toasts }: ToastProps) {
     return (
-        <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-sm w-full pointer-events-none">
+        /* 💡 【スマホでのズレ・はみ出しを完全修正】
+           スマホ（初期状態）: `top-4 left-4 right-4` で画面の左右いっぱいに安全な余白（16px）を空けてフィット。 `w-auto` で横幅を自動調整。
+           PC（md以上）      : `md:top-6 md:right-6 md:left-auto` で元のスタイリッシュな右上にピタッと戻します。 `md:w-full md:max-w-sm` で横幅を制限。 */
+        <div className="fixed top-4 left-4 right-4 md:top-6 md:right-6 md:left-auto z-50 flex flex-col gap-3 w-auto md:w-full md:max-w-sm pointer-events-none">
             {toasts.map(t => (
                 <div
                     key={t.id}

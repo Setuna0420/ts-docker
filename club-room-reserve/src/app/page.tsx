@@ -459,7 +459,7 @@ function ReservationPage() {
                           const isSystemDisabled = (!isWeekend && isClassTime) || isUniversityDisabled;
 
                           const slotDate = new Date(day.dateObj);
-                          slotDate.setHours(startHour, 0, 0, 0);
+                          slotDate.setHours(startHour + 1, 0, 0, 0);
                           const isPast = slotDate < today;
 
                           const isDisabled = (isSystemDisabled && !bookingData) || (isPast && !bookingData);
@@ -540,7 +540,7 @@ function ReservationPage() {
                     const isSystemDisabled = (!(day.dayOfWeek === "日" || day.dayOfWeek === "土") && time.label >= "10:00" && time.label < "18:00") || isUniversityDisabled;
 
                     const slotDate = new Date(day.dateObj);
-                    slotDate.setHours(startHour, 0, 0, 0);
+                    slotDate.setHours(startHour + 1, 0, 0, 0);
                     const isPast = slotDate < today;
 
                     const isDisabled = (isSystemDisabled && !bookingData) || (isPast && !bookingData);
