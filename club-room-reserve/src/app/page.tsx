@@ -605,7 +605,7 @@ function ReservationPage() {
                       ボタン幅を固定値ではなくパーセンテージ（flex-1 / w-full）で均等分配させ、
                       パディング（px-0.5）と文字サイズ（text-[11px]）を極限まで最適化し、
                       絶対に文字が改行されて潰れないようにプロ仕様に組み直しました。 */}
-                  <div className="flex gap-1 justify-between w-full pb-2.5">
+                  {/* 💡 横スクロール対応：ボタンの幅をしっかり確保して押しやすく！ */}                  <div className="flex gap-2 overflow-x-auto pt-1 pb-3 px-1 scrollbar-none snap-x -mx-1">
                     {days.map((day, idx) => {
                       const isSelectedDay = activeMobileDayIdx === idx;
                       const isToday = day.label === todayString && dayOffset === 0;
@@ -613,9 +613,9 @@ function ReservationPage() {
                         <button
                           key={day.label}
                           onClick={() => setActiveMobileDayIdx(idx)}
-                          className={`flex-1 min-w-0 py-2 px-0.5 rounded-xl border text-center transition-all duration-100 active:scale-95 cursor-pointer
+                          className={`snap-center shrink-0 min-w-[76px] py-2.5 rounded-xl border text-center transition-all duration-100 cursor-pointer
                             ${isSelectedDay
-                              ? "bg-gradient-to-b from-indigo-500 to-indigo-600 border-indigo-400 text-white font-black shadow-xl shadow-indigo-950/80 scale-105 ring-2 ring-indigo-400/30"
+                              ? "bg-gradient-to-b from-indigo-500 to-indigo-600 border-indigo-400 text-white font-black shadow-lg shadow-indigo-950/50 ring-2 ring-indigo-500/20"
                               : isToday
                                 ? "bg-slate-900 border-indigo-500/40 text-indigo-300 font-bold opacity-70"
                                 : "bg-slate-900/20 border-slate-800/60 text-slate-600 opacity-50"}`}
