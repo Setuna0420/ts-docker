@@ -9,7 +9,7 @@ import { Modals } from "./components/Modals"
 // =============================================================================
 // 1. 定数・外部設定
 // =============================================================================
-const GAS_URL = "https://script.google.com/macros/s/AKfycbz-LqUv0ys35_1rOx4spWmIiO4LoeD1K_bmVyiDmzZ5T7jEJZqucDHdHd4n1pOjkEEuzg/exec";
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxmO29ozdOgPu3vWD2xk2W-hig-nb00vEB7WDIAVQUOpDDQyVqC_pTFONTvX4s1_n9a/exec";
 
 interface BookedSlot {
   slotId: string;
@@ -148,12 +148,16 @@ function ReservationPage() {
   // 💡 データの読み込み処理 (GET) の修正
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(GAS_URL, {
+      // 💡 URLの末尾に毎回違う数字（?_ts=17100000000）を付けてキャッシュを強制破壊
+      const cacheBustingUrl = `${GAS_URL}?_ts=${Date.now()}`;
+
+      const res = await fetch(cacheBustingUrl, {
         method: "GET",
         mode: "cors",
-        redirect: "follow",   // Googleのリダイレクトを追従
-        cache: "no-store",    // 最新のデータを取得するためキャッシュを無効化
+        redirect: "follow",
+        cache: "no-store",
       });
+
       if (!res.ok) throw new Error(`サーバーエラー: ${res.status}`);
       const data = await res.json();
       setBookedSlots(data.bookedSlots || []);
@@ -221,47 +225,45 @@ function ReservationPage() {
     if (isSubmitting || selectedSlots.length === 0 || !isSelectedSlotsContinuous()) return;
     setIsSubmitting(true);
 
-    let hasError = false;
-    const newBookings: BookedSlot[] = [];
+    // 送信用にデータをまとめる
+    const slotsData = selectedSlots.map(slotId => ({
+      slotId,
+      userName: userName.trim(),
+      studentId: Number(studentId)
+    }));
 
-    for (const slotId of selectedSlots) {
-      try {
-        const res = await fetch(GAS_URL, {
-          method: "POST",
-          mode: "cors",        // CORS通信を明示
-          redirect: "follow",  // 302リダイレクトを自動追従させる
-          // ⚠️ headers: { "Content-Type": "application/json" } は
-          // OPTIONSリクエスト（CORSプリフライト）を誘発してエラーになるため絶対に書かない
-          body: JSON.stringify({
-            action: "book",
-            slotId,
-            userName: userName.trim(),
-            studentId: Number(studentId)
-          }),
-        });
-        const result = await res.json();
-        if (result.success) {
-          newBookings.push({ slotId, userName: userName.trim(), studentId: Number(studentId) });
+    try {
+      const res = await fetch(GAS_URL, {
+        method: "POST",
+        mode: "cors",
+        redirect: "follow",
+        body: JSON.stringify({
+          action: "book",
+          slots: slotsData // まとめて配列で送信
+        }),
+      });
+      const result = await res.json();
+
+      if (result.success) {
+        setBookedSlots(prev => [...prev, ...slotsData]);
+        showToast("すべての予約が完了しました");
+        setSelectedSlots([]);
+        setIsBookModalOpen(false);
+        setUserName("");
+        setStudentId("");
+      } else {
+        if (result.error === "Already booked") {
+          showToast("選択された枠の一部が、既に他の方に予約されています", "error");
         } else {
-          hasError = true;
+          showToast("予約処理に失敗しました", "error");
         }
-      } catch (e) {
-        hasError = true;
+        loadData();
       }
+    } catch (e) {
+      showToast("通信エラーが発生しました", "error");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    if (!hasError) {
-      setBookedSlots(prev => [...prev, ...newBookings]);
-      showToast("すべての予約が完了しました");
-      setSelectedSlots([]);
-      setIsBookModalOpen(false);
-      setUserName("");
-      setStudentId("");
-    } else {
-      showToast("一部またはすべての枠が、タッチの差で埋まった可能性があります", "error");
-      loadData();
-    }
-    setIsSubmitting(false);
   };
 
   // 💡 キャンセル処理 (POST) の修正
