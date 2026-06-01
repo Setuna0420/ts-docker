@@ -145,9 +145,15 @@ function ReservationPage() {
     sessionStorage.setItem("dayOffset", dayOffset.toString());
   }, [dayOffset]);
 
+  // 💡 データの読み込み処理 (GET) の修正
   const loadData = useCallback(async () => {
     try {
-      const res = await fetch(GAS_URL);
+      const res = await fetch(GAS_URL, {
+        method: "GET",
+        mode: "cors",
+        redirect: "follow",   // Googleのリダイレクトを追従
+        cache: "no-store",    // 最新のデータを取得するためキャッシュを無効化
+      });
       if (!res.ok) throw new Error(`サーバーエラー: ${res.status}`);
       const data = await res.json();
       setBookedSlots(data.bookedSlots || []);
@@ -210,6 +216,7 @@ function ReservationPage() {
     return { isDisabled: false, reason: "" };
   };
 
+  // 💡 予約登録処理 (POST) の修正
   const handleBookSubmit = async () => {
     if (isSubmitting || selectedSlots.length === 0 || !isSelectedSlotsContinuous()) return;
     setIsSubmitting(true);
@@ -221,6 +228,10 @@ function ReservationPage() {
       try {
         const res = await fetch(GAS_URL, {
           method: "POST",
+          mode: "cors",        // CORS通信を明示
+          redirect: "follow",  // 302リダイレクトを自動追従させる
+          // ⚠️ headers: { "Content-Type": "application/json" } は
+          // OPTIONSリクエスト（CORSプリフライト）を誘発してエラーになるため絶対に書かない
           body: JSON.stringify({
             action: "book",
             slotId,
@@ -253,6 +264,7 @@ function ReservationPage() {
     setIsSubmitting(false);
   };
 
+  // 💡 キャンセル処理 (POST) の修正
   const handleCancelSubmit = async () => {
     if (isSubmittingCancel || !cancelTargetSlot) return;
 
@@ -263,6 +275,8 @@ function ReservationPage() {
     try {
       const res = await fetch(GAS_URL, {
         method: "POST",
+        mode: "cors",        // CORS通信を明示
+        redirect: "follow",  // 302リダイレクトを自動追従させる
         body: JSON.stringify({ action: "cancel", slotId: cancelTargetSlot }),
       });
       const result = await res.json();
@@ -377,15 +391,12 @@ function ReservationPage() {
                 <div className="space-y-2 max-h-55 overflow-y-auto pr-1">
                   {myReservations.length > 0 ? (
                     myReservations.map((res, idx) => {
-                      // 💡 【仕様変更：過去枠のキャンセル禁止】
-                      // 検索でヒットしたコマが「過去」のものかどうかを判定
                       const isPastRes = res.timestamp < today.getTime();
 
                       return (
                         <div key={idx} className="flex items-center justify-between gap-2 text-[11px] bg-slate-950 border border-slate-800 p-3 rounded-xl text-slate-300 hover:border-slate-700 transition-colors">
                           <div className="flex flex-col gap-1 min-w-0 flex-1">
                             <div className="flex items-center gap-2">
-                              {/* 💡 紛らわしい「📅」を排除し、シンプルなテキストのみに変更 */}
                               <span className={`font-black shrink-0 ${res.dayOfWeek === "土" ? "text-blue-400" : res.dayOfWeek === "日" ? "text-rose-400" : "text-slate-100"}`}>
                                 {res.date}
                                 <span className="ml-1 text-[10px] font-black text-slate-500">({res.dayOfWeek})</span>
@@ -397,7 +408,6 @@ function ReservationPage() {
                             <div className="text-slate-500 font-bold font-mono">{res.time} 〜 {isPastRes && <span className="text-[9px] text-slate-700 font-sans font-normal ml-1">(終了)</span>}</div>
                           </div>
 
-                          {/* 💡 過去の枠なら✕ボタンを出さず、未来の枠の時だけ消せるようにガードを設置 */}
                           {!isPastRes ? (
                             <button
                               onClick={() => setCancelTargetSlot(res.slotId)}
@@ -518,7 +528,6 @@ function ReservationPage() {
                 <div className="sticky top-0 z-30 bg-slate-900 border-b border-slate-800 pb-3 mb-1 flex items-center justify-between">
                   <div>
                     <span className="text-[9px] font-black text-slate-500 uppercase tracking-wider block">SELECTED DATE</span>
-                    {/* 💡 紛らわしいカレンダーの絵文字を排除し、超スッキリした文字盤に変更 */}
                     <span className={`text-base font-black ${days[activeMobileDayIdx].dayOfWeek === "土" ? "text-blue-400" : days[activeMobileDayIdx].dayOfWeek === "日" ? "text-rose-400" : "text-cyan-400"}`}>
                       {days[activeMobileDayIdx].label} ({days[activeMobileDayIdx].dayOfWeek})
                     </span>
@@ -601,11 +610,7 @@ function ReservationPage() {
                 </div>
 
                 <div className="border-t border-slate-800 pt-3 mt-2 bg-slate-950/40 p-3 rounded-2xl">
-                  {/* 💡 【スマホ曜日潰れ対策】
-                      ボタン幅を固定値ではなくパーセンテージ（flex-1 / w-full）で均等分配させ、
-                      パディング（px-0.5）と文字サイズ（text-[11px]）を極限まで最適化し、
-                      絶対に文字が改行されて潰れないようにプロ仕様に組み直しました。 */}
-                  {/* 💡 横スクロール対応：ボタンの幅をしっかり確保して押しやすく！ */}                  <div className="flex gap-2 overflow-x-auto pt-1 pb-3 px-1 scrollbar-none snap-x -mx-1">
+                  <div className="flex gap-2 overflow-x-auto pt-1 pb-3 px-1 scrollbar-none snap-x -mx-1">
                     {days.map((day, idx) => {
                       const isSelectedDay = activeMobileDayIdx === idx;
                       const isToday = day.label === todayString && dayOffset === 0;
